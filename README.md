@@ -83,7 +83,7 @@ I IV V I I IV V vi I ii IV V I I IV V I
 0 0  0 1 2 1  1 0  3 0  2  2 4 5 3  3 6
 ```
 
-By the time we get to the end, `I` has been observed seven times (it says size because it had been observed six times *before* that final one).
+By the time we get to the end, `I` has been observed seven times (it says six because it had been observed six times *before* that final one).
 
 #### 2 gram
 
@@ -154,18 +154,14 @@ So, based on our past experience, there would be a 2/3 probability of `V I` and 
 Thus, we can get the 1st-order dynamic conditional probabilities of our sequence quite easily:
 
 $$
-P(chord_i \| chord_{i-1}) = \frac{Count2Gram(chord_i)}{Count1Gram(chord_{i-1})}\\
-\intertext{where}
-i = index
+P(chord_i \| chord_{i-1}) = \frac{Count2Gram(chord_i)}{Count1Gram(chord_{i-1})}
 $$
 
 
 We can apply the exact same formula with the three-grams and two-grams to get the 2nd-order conditional probability:
 
 $$
-P(chord_i \| chord_{i-1, i-2}) = \frac{Count3Gram(chord_i)}{Count2Gram(chord_{i-1})}\\
-\intertext{where}
-i = index
+P(chord_i \| chord_{i-1}, chord_{i-2}) = \frac{Count3Gram(chord_i)}{Count2Gram(chord_{i-1})}
 $$
 
 For example, for the final `I`, the probability of of that chord being `I` given the previous two chords is also 2/3.
