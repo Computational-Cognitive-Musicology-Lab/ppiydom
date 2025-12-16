@@ -1,0 +1,19 @@
+Package: ppidyom
+Type: PPIDYOM
+Title: Apply partial predictive modeling to musical data
+Version: 0.1.0
+Authors@R: c(
+    person(
+      "Nat", "Condit-Schultz",
+      email = "natcs@gatech.edu",
+      role = c("aut", "cre")
+    )
+  )
+Description: Partial predictive modeling (PPM) has been applied widely to musical data using the IDyOM model.
+    However, this model tends to be a bit hard to implement, and can be inscrutable and opaque (at least to me).
+    Our goal is to make PPM for music faster and easier...and in R.
+    Other attempts have been made in R, but our approach is more flexible and much faster.
+License: GLP-3
+Encoding: UTF-8
+LazyData: true
+Depends: R(>= 4.5), data.table
