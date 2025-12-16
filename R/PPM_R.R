@@ -1,146 +1,71 @@
-x <- sample(letters[1:7], 5e5, replace= T, prob = c(20,10,5,4,3,2,1))
-# library(humdrumR)
-# readHumdrum('~/Bridge/Research/Data/Humdrum/Kern/JSBach/371chorales/*.krn') -> chor
-
-# with(chor, kern(Token, generic=T,simple=T)) -> x
-
-# file <- chor$File
-
 library(data.table)
 
 
-d <- as.data.table(setNames(lapply(5:0, \(n) shift(x, n)), paste0('N', 5:0)))
-d[ , I := seq_len(nrow(d))]
-
-anachron <- function(n, data) {
-  j <- paste0('N', n:0)
-
-  y <- data
-
-  y <- y[ , list(Count = length(I)), j]
-
-  j <- head(j, -1)
-  y[ , {
-    total <- sum(Count)
-    list(Count = Count, Total = total, p = Count / total, N0 = N0)
-  },  by = j] -> y
 
 
-  y
-}
+lagMatrix <- function(x, N = 10, ...) {
+  # x is a sequence of token
+  # N is the maximum N-gram length
+  # ... can be additional vectors, all the same length as x
 
-buildN <- function(x, N = 10, ...) {
-  Ntab <- as.data.table(lapply((N-1):0, \(n) shift(x, n)))
+  Ntab <- as.data.table(lapply((N - 1):0, \(n) shift(x, n)))
 
-  colnames(Ntab) <- c(paste0('Lag-', (N-1):1), 'Original')
+  colnames(Ntab) <- paste0('Lag', (N-1):0)
 
   Ntab <- cbind(Ntab, as.data.table(list(...)))
 
-  Ntab[ , I := 1:nrow(Ntab)]
+  Ntab[ , index := 1:nrow(Ntab)]
 
   Ntab[]
 }
 
 
+dynamicModel <- function(x, N = 5, escape = 0, prior = NULL) {
+  # x is a sequence of token
+  # N is the maximum N-gram length
+  # ... can be additional vectors, all the same length as x
+  # escape is a prior "escape" probability (a single integer) to be added to all gram counts
+  # prior is Null, or a previous model created by dynamicModel
 
+  countMatrix <- lagMatrix(x, N)
 
-model <- function(x, N = 5, ..., escape = 0, prior = NULL) {
+  lags <- setdiff(colnames(countMatrix), 'index')
 
-  Nt <- buildN(x, N, ...)
+  for (n in 1:N) {
 
+    Ncolname <- paste0('N', n)
 
-  seqs <- colnames(Nt)[grepl('Lag-', colnames(Nt))]
+    groupby <- tail(lags, n)
 
-  # enumerate all unique N grams
-  for (n in 0:(N-1)) {
-    cur <- tail(seqs, n)
+    countMatrix <- countMatrix[ , (Ncolname) := seq_along(index) - 1 + escape, by = groupby]
 
-    #
-    counts <- Nt[ , list(I, Count = seq_along(I)  - 1 + escape), by = c(cur, 'Original')][ , c('I', "Count"), with = FALSE]
-    colnames(counts) <- c('I', paste0('N', n))
-    Nt <- counts[Nt, on = 'I']
-
-    #
-    # conditionCounts <- Nt[ , list(I, Condition = seq_along(I) -1 + escape), by = cur][ , c('I', "Condition"), with = FALSE]
-    # colnames(conditionCounts) <- c('I', condition)
-    # Nt <- conditionCounts[Nt, on = 'I']
 
     #
     if (!is.null(prior)) {
-      jointPrior <- unique(prior, by = c(cur, 'Sequence'), fromLast = TRUE)
-      Nt[jointPrior, on = c(cur, 'Sequence'), (joint) := get(joint) + get(paste0('i.', joint))]
+      priorFinal <- prior[, list(PriorCount = max(get(Ncolname)) + 1), by = groupby] # + 1 because prior countMatrix doesn't count the LAST time of each thing
 
-      # conditionPrior <- unique(prior, by = cur, fromLast = TRUE)
-      # Nt[conditionPrior, on = cur, (condition) := get(condition) + get(paste0('i.', condition))]
-
+      countMatrix <- merge(countMatrix, priorFinal, by = groupby, all.x = TRUE)
+      countMatrix[ , (Ncolname) := get(Ncolname) + ifelse(is.na(PriorCount), 0, PriorCount)]
+      countMatrix[, PriorCount := NULL]
+      #
     }
   }
 
-  setorder(Nt, I)
+  setorder(countMatrix, index)
 
-  Nt[]
-}
-
-pullFinal <- function(Nt) {
-  seqs <- colnames(Nt)[grepl('Seq-', colnames(Nt))]
-
-  Nt <- unique(Nt, by = seqs, fromLast = TRUE)
-
-  setorderv(Nt, seqs)
-  Nt
-
-
+  countMatrix[]
 }
 
 
 
-test <- c('I', 'IV', 'V', 'I', 'I', 'IV', 'I', 'I', 'IV', 'ii', 'V', 'I', 'ii','V','vi','IV','V','I')
 
+
+test1 <- c('I', 'IV', 'V', 'I', 'I', 'IV', 'I', 'I', 'IV', 'ii', 'V', 'I', 'ii','V','vi','IV','V','I')
 test2 <- c('I', 'IV', 'V', 'I', 'I', 'IV', 'V', 'vi', 'I', 'ii', 'IV', 'V', 'I', 'I','IV', 'V', 'I')
+test3 <- sample(letters, 1e5, replace = TRUE)
 
 
-# Joint / Condition or (Joint - 1) / (Condition - 1)
 
-nth <- function(x) {
-  na <- is.na(x)
-  .x <- x[!na]
-  i <- tapply(seq_along(.x), .x, force)
-  n <- tapply(.x, .x, seq_along)
-  .x <- unlist(n)[order(unlist(i))]
-
-  output <- rep(NA_integer_, length(x))
-  output[!na] <- .x
-  output
-
-}
-
-
-ngrams <- function(..., maxN = 10) {
-
-  vecs <- list(...)
-  if (is.null(names(vecs)) || any(names(vecs) == '')) stop('Vecs must all be named')
-
-  tables <-  Map(\(vec, name) {
-                     table <- as.data.table(lapply(0:(maxN - 1), \(n) shift(vec, n)))
-                     colnames(table) <- as.character(0:(maxN - 1))
-                     table$I <- seq_len(nrow(table))
-                     table
-                     },
-                 vecs, names(vecs))
-
-
-  table <- do.call('cbind', tables)
-  class(tables) <- c('ngram.table', class(tables))
-  tables
-}
-
-
-sums <- function(tables, var, N = 2) {
-  table <- do.call('cbind', tables[var])
-  byjoint <- unlist(lapply(var, \(v) paste0(var, '.', 0:(N - 1))))
-  bycond <- unlist(lapply(var, \(v) paste0(var, '.', 1:(N - 1))))
-
-  table <- table[ , Joint := seq_along(.I), by = byjoint]
-  table <- table[ , Condition := seq_along(.I), by = bycond]
-  table[]
-}
+mod1 <- dynamicModel(test1, N = 3)
+mod2 <- dynamicModel(test2, N = 3, prior = mod1)
+mod12 <- dynamicModel(c(test1, test2), N = 3)
