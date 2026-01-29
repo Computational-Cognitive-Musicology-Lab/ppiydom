@@ -180,3 +180,27 @@ The nice things about the count-matrix approach include that
 4) It is fast. Using the `data.table` package, we can compute the count matrix very fast, even for large sequences.
 
 
+## Dev Testing
+This project uses **`testthat`** for testing. All tests live under `tests/testthat/`.
+
+### Run tests
+From the R console:
+```r
+library(testthat)
+testthat::test_dir("tests/testthat")
+```
+To run a specific test file:
+```r
+testthat::test_file("tests/testthat/test-information-theory-construct.R")
+```
+
+### Run scalability timing tests
+Scalability tests are informational only and print execution time.
+They are disabled by default to avoid slowing down routine test runs.
+
+To enable them, run this from R console:
+```r
+Sys.setenv(RUN_SCALABILITY_TESTS = "true")
+testthat::test_file("tests/testthat/test-scalability.R")
+```
+

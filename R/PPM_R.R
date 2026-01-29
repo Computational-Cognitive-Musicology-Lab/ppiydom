@@ -1,6 +1,5 @@
+#' @import data.table
 library(data.table)
-
-
 
 # ===========COUNT MATRIX===========
 
@@ -9,9 +8,9 @@ lagMatrix <- function(x, N = 10, ...) {
   # N is the maximum N-gram length
   # ... can be additional vectors, all the same length as x
 
-  Ntab <- as.data.table(lapply((N - 1):0, \(n) shift(x, n)))
+  Ntab <- as.data.table(lapply(N:0, \(n) shift(x, n)))
 
-  colnames(Ntab) <- paste0('Lag', (N-1):0)
+  colnames(Ntab) <- paste0('Lag', N:0)
 
   Ntab <- cbind(Ntab, as.data.table(list(...)))
 
@@ -50,7 +49,7 @@ dynamicModel <- function(x, N = 5, prior = NULL) {
       priorFinal <- prior[, list(PriorCount = max(get(Ncolname)) + 1), by = groupby] # + 1 because prior countMatrix doesn't count the LAST time of each thing
 
       countMatrix <- merge(countMatrix, priorFinal, by = groupby, all.x = TRUE)
-      countMatrix[ , (Ncolname) := get(Ncolname) + ifelse(is.na(PriorCount), 0, PriorCount)]
+      countMatrix[, (Ncolname) := get(Ncolname) + ifelse(is.na(PriorCount), 0, PriorCount)]
       countMatrix[, PriorCount := NULL]
       #
     }
@@ -197,7 +196,7 @@ compute_ppm_table <- function(countMatrix,
   # compute all orders
   for (n in max_order:1) {
     probs_n <- compute_probs_for_n(dt, n, escape_method)
-    print(probs_n)
+    # print(probs_n)
 
     valid <- !dt$resolved & probs_n$C >0
     event_seen <- valid & probs_n$prob > 0
@@ -215,7 +214,7 @@ compute_ppm_table <- function(countMatrix,
        p_mass := p_mass * probs_n$esc[event_unseen]
     ]
 
-    print(dt)
+    # print(dt)
   }
 
   # 0-gram fall back
@@ -254,17 +253,8 @@ compute_ppm_table <- function(countMatrix,
 max_order <- 3
 alphabet <- c('I', 'ii', 'III', 'IV', 'V', 'vi', 'vii')
 test <- c('IV', 'I', 'I', 'IV', 'I', 'IV', 'I', 'V', 'I', 'IV', 'V')
-countMatrix <- dynamicModel(test, N=max_order + 1)
+countMatrix <- dynamicModel(test, N=max_order)
+countMatrix
 ppm_table <- compute_ppm_table(countMatrix, 3, alphabet, escape_method = escape_A)
 ppm_table
 
-
-test1 <- c('I', 'IV', 'V', 'I', 'I', 'IV', 'I', 'I', 'IV', 'ii', 'V', 'I', 'ii','V','vi','IV','V','I')
-test2 <- c('I', 'IV', 'V', 'I', 'I', 'IV', 'V', 'vi', 'I', 'ii', 'IV', 'V', 'I', 'I','IV', 'V', 'I')
-test3 <- sample(letters, 1e5, replace = TRUE)
-
-
-
-mod1 <- dynamicModel(test1, N = 3)
-mod2 <- dynamicModel(test2, N = 3, prior = mod1)
-mod12 <- dynamicModel(c(test1, test2), N = 3)
