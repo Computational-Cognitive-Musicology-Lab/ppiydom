@@ -69,3 +69,16 @@ test3 <- sample(letters, 1e5, replace = TRUE)
 mod1 <- dynamicModel(test1, N = 3)
 mod2 <- dynamicModel(test2, N = 3, prior = mod1)
 mod12 <- dynamicModel(c(test1, test2), N = 3)
+
+
+## Cummulative entropy
+
+cumH <- function(counts, base = 2) {
+
+  l <- counts * log(counts, base)
+  l_0 <- ifelse(counts <= 1L, 0, (counts - 1L) * log(counts - 1L, base))
+
+  index <- seq_along(counts)
+
+  -((cumsum(l - l_0) - index*log(index, base)) / index)
+}
