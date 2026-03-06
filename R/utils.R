@@ -2,32 +2,39 @@ compute_entropy <- function(dt_dist) {
   dt_dist[, .(Entropy = -sum(P * log2(P))), by = index][, Entropy := Entropy]$Entropy
 }
 
+# ---------------------------
+# Example sequence
+# ---------------------------
+train_seq1 <- c("A", "B", "A", "C", "A", "B", "A", "C", "A")
+train_seq2 <- c("A", "B", "C", "A", "B", "C", "A", "B", "C")
+test_seq  <- c("B", "A", "B", "C", "A")
 
-
-test <- c("A", "B", "A", "C", "A", "B", "A", "C", "A")
 alphabet <- c("A", "B", "C")
-max_order <- 3
-dynamic_count_table_for_each_order(x, max_order, alphabet)
+max_order <- 2
 
-result <- ppm_compute(
-  x = test,
-  alphabet = alphabet,
-  N = max_order,
-  ppm_type = "interpolation",
-  escape_func = escape_C,
-  base_type = "unseen"
+# ---------------------------
+# Initialize PPM model
+# ---------------------------
+ppm_model <- ppm$new(N = max_order, alphabet = alphabet)
+
+# ---------------------------
+# Train model incrementally
+# ---------------------------
+ppm_model$train_sequence(train_seq1)
+ppm_model$train_sequence(train_seq2)
+
+# ---------------------------
+# Predict on a test sequence
+# ---------------------------
+result <- ppm_model$predict_sequence(
+  x = test_seq,
+  model_type = "ltm+",   # use LTM with online update
+  ppm_type = "backoff",  # or "interpolation"
+  lambda = "C",
+  b = 1
 )
 
+# ---------------------------
+# View results
+# ---------------------------
 print(result)
-
-seq <- factor(x, levels = alphabet)
-mod <- new_ppm_simple(
-  order_bound = max_order,
-  alphabet_levels = alphabet,
-  escape = "c",
-  shortest_deterministic = FALSE,
-  exclusion = FALSE,
-  update_exclusion = FALSE
-)
-res <- model_seq(mod, seq)
-print(res)

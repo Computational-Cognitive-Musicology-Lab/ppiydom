@@ -49,25 +49,33 @@ compute_local_probs <- function(dt, escape_func, normalize = FALSE) {
 #' @param x Character vector of events
 #' @param N Maximum order
 #' @param alphabet Character vector of full alphabet
+#' @param order_counts List of length N+1 containing count tables for orders
+#'   0..N. Each element must be a `data.table` with columns:
+#'   `index`, `context_id`, `Event`, `Ce`, `C`, `t`, `t1`.
+#'
+#'   - For **STM**, `index` corresponds to the timestep.
+#'   - For **LTM**, `index` is constantly -1 since counts
+#'     represent aggregated training statistics.
 #' @param escape_func Escape function (e.g., `escape_C`).
 #'
 #' @return data.table with columns: index, Event, P, IC
 #' @export
-ppm_backoff <- function(x, N, alphabet, escape_func=escape_C) {
+ppm_backoff <- function(x, N, alphabet, order_counts, escape_func=escape_C) {
 
   T <- length(x)
   alpha_len <- length(alphabet)
 
-  # 1. Dynamic count tables
-  dt_orders <- dynamic_count_table_for_each_order(x, N = N, alphabet = alphabet)
+  if (is_stm(order_counts)) {
+    dt_orders <- order_counts
+  } else {
+    dt_orders <- ltm_to_timestep_counts(x, N, alphabet, order_counts)
+  }
 
-  # 2. Base probability: 1 / (∣alphabet∣)
-  base_prob <- rep(1 / alpha_len, T * alpha_len)
-  print(base_prob)
-
-  # 3. Compute PPM probabilities
   dt_final <- copy(dt_orders[[N + 1]])[, .(index, Event)]
   dt_final[, P := NA_real_]
+
+  # Base probability: 1 / (∣alphabet∣)
+  base_prob <- rep(1 / alpha_len, T * alpha_len)
 
   # Initialize leftover mass
   p_mass <- rep(1, nrow(dt_final))
@@ -109,13 +117,20 @@ ppm_backoff <- function(x, N, alphabet, escape_func=escape_C) {
   dt_result
 }
 
-test <- c("A", "B", "A", "C", "A", "B", "A", "C", "A")
+x <- c("A", "B", "A", "C", "A", "B", "A", "C", "A")
 alphabet <- c("A", "B", "C")
 max_order <- 3
-result <- ppm_backoff(
-  x = test,
+counts <- count_tables(
+  x = x,
   N = max_order,
   alphabet = alphabet,
+  model_type="both"
+)
+result <- ppm_backoff(
+  x = x,
+  N = max_order,
+  alphabet = alphabet,
+  order_counts = counts$ltm,
   escape_func = escape_C
 )
 

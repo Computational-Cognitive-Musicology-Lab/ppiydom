@@ -1,6 +1,25 @@
+# Define all available escape/discount functions
+escape_functions <- list(
+  A       = escape_A,
+  B       = escape_B,
+  C       = escape_C,
+  D       = escape_D,
+  X       = escape_AX
+)
+
+discount_functions <- list(
+  A       = discount_A,
+  B       = discount_B,
+  C       = discount_C,
+  D       = discount_D,
+  X       = discount_AX
+)
+
 # C: Total times this context has occurred
 # t: Number of distinct events seen after this context
 # t1: Number of events seen exactly once (singletons) after this context
+
+
 # esc: escape probability
 # denom: denominator for seen events
 # subtract: optional count subtraction
@@ -45,6 +64,9 @@ escape_AX <- function(C, t, t1) {
   )
 }
 
+
+# lambda: Used to calculate the discounted probability mass of each order
+# TODO k: optional count subtraction
 
 discount_A <- function(C, t, t1) {
   list(

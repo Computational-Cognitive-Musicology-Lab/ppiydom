@@ -17,20 +17,6 @@ compute_discounted_probs <- function(dt, discount_func) {
 
     list(lambda = lambda)
   }, by = .(index, context_id, Event)]
-  #disc_stats <- discount_func(dt$C, dt$t, dt$t1)
-  #lambda <- disc_stats$lambda
-
-  #out <- data.table(
-   # index = dt$index,
-    #Event = dt$Event,
-    #lambda = lambda
-  #)
-
-  # normalization
-  #out[, lambda := {
-   # s <- sum(lambda)
-    #if (s > 0) lambda / s else lambda
-  #}, by = index]
 }
 
 #' Compute PPM Probabilities with Interpolation
@@ -41,18 +27,28 @@ compute_discounted_probs <- function(dt, discount_func) {
 #' @param x Character vector of events
 #' @param N Maximum order
 #' @param alphabet Character vector of full alphabet
+#' @param order_counts List of length N+1 containing count tables for orders
+#'   0..N. Each element must be a `data.table` with columns:
+#'   `index`, `context_id`, `Event`, `Ce`, `C`, `t`, `t1`.
+#'
+#'   - For **STM**, `index` corresponds to the timestep.
+#'   - For **LTM**, `index` is constantly -1 since counts
+#'     represent aggregated training statistics.
 #' @param discount_func Discount function (e.g., `discount_C`).
 #'
 #' @return data.table with columns: index, Event, P, IC
 #' @export
-ppm_interpolated <- function(x, N, alphabet, discount_func=discount_C) {
+ppm_interpolated <- function(x, N, alphabet, order_counts, discount_func=discount_C) {
   T <- length(x)
   alpha_len <- length(alphabet)
 
-  # 1. Dynamic count tables
-  dt_orders <- dynamic_count_table_for_each_order(x, N = N, alphabet = alphabet)
+  if (is_stm(order_counts)) {
+    dt_orders <- order_counts
+  } else {
+    dt_orders <- ltm_to_timestep_counts(x, N, alphabet, order_counts)
+  }
 
-  # 2. Base probabilities: 1 / (∣alphabet∣+1−tseen)
+  # Base probabilities: 1 / (∣alphabet∣+1−tseen)
   base_prob <- numeric(T * alpha_len)
   seen_symbols <- character(0)
   for (t in seq_len(T)) {
@@ -62,7 +58,7 @@ ppm_interpolated <- function(x, N, alphabet, discount_func=discount_C) {
     base_prob[idx] <- 1 / denom
   }
 
-  # 3. Compute PPM probabilities
+  # Compute PPM probabilities
   # Initialize probability matrix: rows = timesteps × symbols
   dt_final <- copy(dt_orders[[N + 1]])[, .(index, Event)]
   P <- base_prob
@@ -93,10 +89,10 @@ ppm_interpolated <- function(x, N, alphabet, discount_func=discount_C) {
   }, by = index]
   dt_final[, IC := -log2(P)]
 
-  # 4. Compute entropy per timestep
+  # Compute entropy per timestep
   Entropy <- compute_entropy(dt_final)
 
-  # 5. Merge actual events with computed probabilities
+  # Merge actual events with computed probabilities
   # select only the probability for the actual event
   # TODO: order
   dt_result <- dt_final[
@@ -109,17 +105,27 @@ ppm_interpolated <- function(x, N, alphabet, discount_func=discount_C) {
   dt_result
 }
 
-print("PPIDyOM Result:")
-test <- c("A", "B", "A", "C", "A", "B", "A", "C", "A")
+
+print("PPIDYOM Result:")
+x <- c("A", "B", "A", "C", "A", "B", "A", "C", "A")
 alphabet <- c("A", "B", "C")
 max_order <- 3
+counts <- count_tables(
+  x = x,
+  N = max_order,
+  alphabet = alphabet,
+  model_type="both"
+)
 result <- ppm_interpolated(
   x = test,
-  alphabet = alphabet,
   N = max_order,
+  alphabet = alphabet,
+  order_counts = counts$stm,
   discount_func = discount_C
 )
+
 print(result)
+
 
 
 print("PPM Result:")
