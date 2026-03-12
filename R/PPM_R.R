@@ -12,9 +12,9 @@ lagMatrix <- function(x, N = 10, ...) {
 
   colnames(Ntab) <- paste0('Lag', (N-1):0)
 
-  Ntab <- cbind(Ntab, as.data.table(list(...)))
+  # Ntab <- cbind(Ntab, as.data.table(list(...)))
 
-  Ntab[ , index := 1:nrow(Ntab)]
+  # Ntab[ , index := 1:nrow(Ntab)]
 
   Ntab[]
 }
