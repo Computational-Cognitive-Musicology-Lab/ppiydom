@@ -20,29 +20,35 @@ lagMatrix <- function(x, N = 10, ...) {
 }
 
 
-dynamicModel <- function(x, N = 5, escape = 0, prior = NULL) {
+dynamicModel <- function(x, N = 5, escape = c('a', 'b', 'c', 'd'), prior = NULL) {
   # x is a sequence of token
   # N is the maximum N-gram length
   # ... can be additional vectors, all the same length as x
   # escape is a prior "escape" probability (a single integer) to be added to all gram counts
   # prior is Null, or a previous model created by dynamicModel
 
+  escape <- match.arg(escape)
+
   countMatrix <- lagMatrix(x, N)
 
   lags <- setdiff(colnames(countMatrix), 'index')
 
+  countMatrix[ , C0 := seq_along(index) - 1  + if (!is.null(prior)) nrow(prior) else 0]
+
   for (n in 1:N) {
 
-    Ncolname <- paste0('N', n)
-
+    Ccol <- paste0('C', n)
+    Tcol <- paste0('t', n)
     groupby <- tail(lags, n)
 
-    countMatrix <- countMatrix[ , (Ncolname) := seq_along(index) - 1 + escape, by = groupby]
-
+    countMatrix <- countMatrix[ , (Ccol) := seq_along(index) - 1, by = groupby]
+    countMatrix[ , (Tcol) := c(0, head(cumsum(get(Ccol) == 0), -1))]
+    countMatrix <- doescape(escape, countMatrix, n)
 
     #
     if (!is.null(prior)) {
       priorFinal <- prior[, list(PriorCount = max(get(Ncolname)) + 1), by = groupby] # + 1 because prior countMatrix doesn't count the LAST time of each thing
+
 
       countMatrix <- merge(countMatrix, priorFinal, by = groupby, all.x = TRUE)
       countMatrix[ , (Ncolname) := get(Ncolname) + ifelse(is.na(PriorCount), 0, PriorCount)]
@@ -57,6 +63,31 @@ dynamicModel <- function(x, N = 5, escape = 0, prior = NULL) {
 }
 
 
+doescape <- function(escape = 'a', countMatrix, n) {
+  C <- countMatrix[[paste0('C', n - 1)]]
+  c <- countMatrix[[paste0('C', n)]]
+  t <- countMatrix[[paste0('t', n)]]
+  switch(escape,
+         a = {
+           c[c == 0] <- 1
+           C <- C + 1
+         },
+         b = {
+           c <- ifelse(c == 0, t, c - 1)
+         },
+         c = {
+           c[c == 0] <- t[c == 0]
+           C <- C + t
+         },
+         d = {
+           c <- ifelse(c == 0, .5 * t, c - .5)
+         })
+
+  countMatrix[[paste0('C', n - 1)]] <- C
+  countMatrix[[paste0('C', n)]] <- c
+  countMatrix
+
+}
 
 
 
@@ -66,9 +97,14 @@ test3 <- sample(letters, 1e5, replace = TRUE)
 
 
 
+mod <- dynamicModel(test1, N=0)
 mod1 <- dynamicModel(test1, N = 3)
 mod2 <- dynamicModel(test2, N = 3, prior = mod1)
 mod12 <- dynamicModel(c(test1, test2), N = 3)
+
+##
+## escape probs----
+
 
 
 ## Cummulative entropy
