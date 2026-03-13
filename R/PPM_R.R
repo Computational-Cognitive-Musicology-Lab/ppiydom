@@ -14,7 +14,7 @@ lagMatrix <- function(x, N = 10, ...) {
 
   # Ntab <- cbind(Ntab, as.data.table(list(...)))
 
-  Ntab[ , index := 1:nrow(Ntab)]
+  # Ntab[ , index := 1:nrow(Ntab)]
 
   Ntab[]
 }
@@ -31,42 +31,46 @@ dynamicModel <- function(x, N = 5, escape = c('a', 'b', 'c', 'd'), prior = NULL)
 
   countMatrix <- lagMatrix(x, N)
 
-  lags <- setdiff(colnames(countMatrix), 'index')
-
-  countMatrix[ , `C-1` := seq_along(index)  + if (!is.null(prior)) nrow(prior) else 0]
-
-  for (n in 1:N) {
-
-    Ccol <- paste0('C', n - 1)
-    Tcol <- paste0('t', n - 1)
-    groupby <- tail(lags, n)
-
-    countMatrix <- countMatrix[ , (Ccol) := seq_along(index) - 1, by = groupby]
-    if (n > 1)  {
-      countMatrix[ , (Tcol) := c(0, head(cumsum(get(Ccol) == 0), -1)), by = eval(head(groupby, -1))]
-    } else {
-      countMatrix[ , (Tcol) := c(0, head(cumsum(get(Ccol) == 0), -1))]
-    }
-    countMatrix <- doescape(escape, countMatrix, n)
-
-    #
-    if (!is.null(prior)) {
-      priorFinal <- prior[, list(PriorCount = max(get(Ncolname)) + 1), by = groupby] # + 1 because prior countMatrix doesn't count the LAST time of each thing
+  lags <- rev(colnames(countMatrix))
 
 
-      countMatrix <- merge(countMatrix, priorFinal, by = groupby, all.x = TRUE)
-      countMatrix[ , (Ncolname) := get(Ncolname) + ifelse(is.na(PriorCount), 0, PriorCount)]
-      countMatrix[, PriorCount := NULL]
-      #
-    }
-  }
+  lapply(1:N,
+         \(n) {
 
-  setnames(countMatrix, 'Lag0', 'Seq')
+           countMatrix[ , (paste0('C', n)) := seq_along(.I) - 1, by = eval(lags[1:n])]
+           if (n > 1) {
+             countMatrix[ , (paste0('t', n)) := cumsum(c(0, !duplicated(Lag0)))[1:length(Lag0)]]
+           } else {
+             countMatrix[ , (paste0('t', n)) := cumsum(c(0, !duplicated(Lag0)))[1:length(Lag0)]]
+           }
 
-  setorder(countMatrix, index)
-  countMatrix[ , (paste0('Lag', (N - 1):1)) := NULL]
 
-  countMatrix[]
+         })
+  Cmatrix <- as.matrix(countMatrix[, grepl('^C', colnames(countMatrix)), with = FALSE])
+  tmatrix <- as.matrix(countMatrix[, grepl('^t', colnames(countMatrix)), with = FALSE])
+  rownames(Cmatrix) <- rownames(tmatrix) <- x
+
+  denominator <- cbind(length(unique(x)),
+                     rbind(0, Cmatrix[1:(nrow(Cmatrix) - 1), 1:(N - 1), drop = FALSE]))
+  numerator <- Cmatrix
+
+  switch(escape,
+         a = {
+           numerator <- pmax(numerator, 1)
+           denominator <- denominator + 1
+         },
+         b = {
+           numerator <- fifelse(numerator == 0, tmatrix, numerator - 1)
+         })
+
+  # denominator[Cmatrix == 0] <- numerator[Cmatrix == 0]
+  # When back off is NOT happening, we can make the ratio 1 so the product has no effect.
+  zeros <- which(Cmatrix != 0, arr.ind = TRUE)
+  zeros[ , 'col'] <- zeros[ , 'col'] - 1
+  zeros <- zeros[zeros[ , 'col'] > 0, , drop = FALSE]
+  denominator[zeros] <- numerator[zeros]
+
+  apply(numerator / denominator, 1, prod)
 }
 
 
@@ -97,7 +101,7 @@ doescape <- function(escape = 'a', countMatrix, n) {
 }
 
 
-
+test0 <- c('I', 'IV', 'I', 'V','I','IV','I',"V",'I','IV','I','V','vi','IV','V','I')
 test1 <- c('I', 'IV', 'V', 'I', 'I', 'IV', 'I', 'I', 'IV', 'ii', 'V', 'I', 'ii','V','vi','IV','V','I')
 test2 <- c('I', 'IV', 'V', 'I', 'I', 'IV', 'V', 'vi', 'I', 'ii', 'IV', 'V', 'I', 'I','IV', 'V', 'I')
 test3 <- sample(letters, 1e5, replace = TRUE)
