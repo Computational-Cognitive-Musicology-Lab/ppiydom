@@ -10,11 +10,11 @@ lagMatrix <- function(x, N = 10, ...) {
 
   Ntab <- as.data.table(lapply((N - 1):0, \(n) shift(x, n)))
 
-  colnames(Ntab) <- paste0('Lag', (N-1):0)
+  setnames(Ntab, names(Ntab), paste0('Lag', (N-1):0))
 
   # Ntab <- cbind(Ntab, as.data.table(list(...)))
 
-  # Ntab[ , index := 1:nrow(Ntab)]
+  Ntab[ , index := 1:nrow(Ntab)]
 
   Ntab[]
 }
@@ -33,16 +33,20 @@ dynamicModel <- function(x, N = 5, escape = c('a', 'b', 'c', 'd'), prior = NULL)
 
   lags <- setdiff(colnames(countMatrix), 'index')
 
-  countMatrix[ , C0 := seq_along(index) - 1  + if (!is.null(prior)) nrow(prior) else 0]
+  countMatrix[ , `C-1` := seq_along(index)  + if (!is.null(prior)) nrow(prior) else 0]
 
   for (n in 1:N) {
 
-    Ccol <- paste0('C', n)
-    Tcol <- paste0('t', n)
+    Ccol <- paste0('C', n - 1)
+    Tcol <- paste0('t', n - 1)
     groupby <- tail(lags, n)
 
     countMatrix <- countMatrix[ , (Ccol) := seq_along(index) - 1, by = groupby]
-    countMatrix[ , (Tcol) := c(0, head(cumsum(get(Ccol) == 0), -1))]
+    if (n > 1)  {
+      countMatrix[ , (Tcol) := c(0, head(cumsum(get(Ccol) == 0), -1)), by = eval(head(groupby, -1))]
+    } else {
+      countMatrix[ , (Tcol) := c(0, head(cumsum(get(Ccol) == 0), -1))]
+    }
     countMatrix <- doescape(escape, countMatrix, n)
 
     #
@@ -57,7 +61,10 @@ dynamicModel <- function(x, N = 5, escape = c('a', 'b', 'c', 'd'), prior = NULL)
     }
   }
 
+  setnames(countMatrix, 'Lag0', 'Seq')
+
   setorder(countMatrix, index)
+  countMatrix[ , (paste0('Lag', (N - 1):1)) := NULL]
 
   countMatrix[]
 }
@@ -83,8 +90,8 @@ doescape <- function(escape = 'a', countMatrix, n) {
            c <- ifelse(c == 0, .5 * t, c - .5)
          })
 
-  countMatrix[[paste0('C', n - 1)]] <- C
-  countMatrix[[paste0('C', n)]] <- c
+  countMatrix[ , (paste0('C', n - 1)) := C]
+  countMatrix[ , (paste0('C', n)) := c]
   countMatrix
 
 }
@@ -97,12 +104,12 @@ test3 <- sample(letters, 1e5, replace = TRUE)
 
 
 
-mod <- dynamicModel(test1, N=0)
-mod1 <- dynamicModel(test1, N = 3)
-mod2 <- dynamicModel(test2, N = 3, prior = mod1)
-mod12 <- dynamicModel(c(test1, test2), N = 3)
-
-##
+# mod <- dynamicModel(test1, N=0)
+# mod1 <- dynamicModel(test1, N = 3)
+# mod2 <- dynamicModel(test2, N = 3, prior = mod1)
+# mod12 <- dynamicModel(c(test1, test2), N = 3)
+#
+# ##
 ## escape probs----
 
 
